@@ -48,6 +48,8 @@
 
 * Route and Wind
     * All menu items
+    * Export a flight plan as PDF in A5/A6 portrait and landscape
+    * On Android, save a flight plan PDF through the system document picker
     * Waypoints
         * Add
         * Remove

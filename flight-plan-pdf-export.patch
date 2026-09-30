@@ -1,0 +1,355 @@
+diff --git a/doc/flight-plan-pdf-template.md b/doc/flight-plan-pdf-template.md
+new file mode 100644
+index 0000000..ad1adcd
+--- /dev/null
++++ b/doc/flight-plan-pdf-template.md
+@@ -0,0 +1,17 @@
++# Flight plan PDF export
++
++The route editor exports flight plans as PDF through its **Export…** menu. The
++export uses Qt's `QTextDocument` and `QPdfWriter` and supports A5 and A6 paper in
++portrait or landscape orientation. On Android, use **Share…** to send the PDF
++to another application or **Save…** to choose a destination with the system
++document picker; the application does not request broad storage permissions.
++Direct Android PrintManager integration is not included. To print, share or
++open the generated PDF in an installed PDF application and use that application's
++print action.
++
++The default, text-based HTML template is
++[`src/templates/flightplan.html`](../src/templates/flightplan.html). It uses
++the HTML subset supported by `QTextDocument`, with `{{title}}` and `{{rows}}`
++placeholders. The exporter HTML-escapes all route data before inserting it.
++You can customize the template's text and simple CSS, then rebuild the
++application to bundle the changes. Keep the placeholders intact.
+diff --git a/doc/manual_regressiontest.md b/doc/manual_regressiontest.md
+index 0cd21b2..aa2d958 100644
+--- a/doc/manual_regressiontest.md
++++ b/doc/manual_regressiontest.md
+@@ -48,6 +48,8 @@
+ 
+ * Route and Wind
+     * All menu items
++    * Export a flight plan as PDF in A5/A6 portrait and landscape
++    * On Android, save a flight plan PDF through the system document picker
+     * Waypoints
+         * Add
+         * Remove
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 5f95694..2b39d92 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -286,6 +286,7 @@ set(ENROUTE_COMMON_LIBRARIES
+     Qt6::Concurrent
+     Qt6::Core
+     Qt6::Core5Compat
++    Qt6::Gui
+     Qt6::HttpServer
+     Qt6::Positioning
+     Qt6::Quick
+diff --git a/src/navigation/FlightRoute.cpp b/src/navigation/FlightRoute.cpp
+index d7f16f6..ef89ff5 100644
+--- a/src/navigation/FlightRoute.cpp
++++ b/src/navigation/FlightRoute.cpp
+@@ -18,8 +18,13 @@
+  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+  ***************************************************************************/
+ 
++#include <QBuffer>
+ #include <QJsonArray>
++#include <QPageLayout>
++#include <QPageSize>
++#include <QPdfWriter>
+ #include <QStandardPaths>
++#include <QTextDocument>
+ 
+ #include "FlightRoute.h"
+ #include "GlobalObject.h"
+@@ -722,6 +727,85 @@ auto Navigation::FlightRoute::toVfrFlightPlan() const -> QString
+ }
+ 
+ 
++auto Navigation::FlightRoute::toPdf(const QString& pageSize, bool landscape) const -> QByteArray
++{
++    QPageSize pdfPageSize;
++    if (pageSize.compare(u"A5"_s, Qt::CaseInsensitive) == 0)
++    {
++        pdfPageSize = QPageSize(QPageSize::A5);
++    }
++    else if (pageSize.compare(u"A6"_s, Qt::CaseInsensitive) == 0)
++    {
++        pdfPageSize = QPageSize(QPageSize::A6);
++    }
++    else
++    {
++        return {};
++    }
++
++    QFile templateFile(u":/pdf/flightplan.html"_s);
++    if (!templateFile.open(QIODevice::ReadOnly | QIODevice::Text))
++    {
++        qWarning() << "Unable to read the flight plan PDF template";
++        return {};
++    }
++    QString html = QString::fromUtf8(templateFile.readAll());
++
++    QString rows;
++    const auto waypoints = m_waypoints.value();
++    if (!waypoints.isEmpty())
++    {
++        rows += u"<tr><td>"_s + waypoints.constFirst().shortName().toHtmlEscaped()
++                + u"</td><td>—</td><td>—</td><td>—</td></tr>"_s;
++    }
++
++    const auto aircraft = GlobalObject::navigator()->aircraft();
++    const auto wind = GlobalObject::navigator()->wind();
++    for (const auto& leg : m_legs.value())
++    {
++        const auto waypoint = leg.endPoint().shortName().toHtmlEscaped();
++        const auto course = leg.TC().isFinite()
++                                ? QString::number(qRound(leg.TC().toDEG())) + u"°"_s
++                                : u"—"_s;
++        const auto distance = aircraft.horizontalDistanceToString(leg.distance());
++        const auto ete = leg.ETE(wind, aircraft);
++        const auto time = ete.isFinite() ? ete.toHoursAndMinutes() : u"—"_s;
++        rows += u"<tr><td>"_s + waypoint + u"</td><td>"_s + course.toHtmlEscaped()
++                + u"</td><td>"_s + distance.toHtmlEscaped() + u"</td><td>"_s
++                + time.toHtmlEscaped() + u"</td></tr>"_s;
++    }
++
++    html.replace(u"{{title}}"_s, tr("Flight plan — %1").arg(suggestedFilename()).toHtmlEscaped());
++    html.replace(u"{{rows}}"_s, rows);
++
++    QTextDocument document;
++    document.setHtml(html);
++    document.setDocumentMargin(0);
++
++    QByteArray pdfData;
++    QBuffer buffer(&pdfData);
++    if (!buffer.open(QIODevice::WriteOnly))
++    {
++        return {};
++    }
++
++    {
++        QPdfWriter writer(&buffer);
++        writer.setResolution(300);
++        const auto orientation = landscape ? QPageLayout::Landscape : QPageLayout::Portrait;
++        if (!writer.setPageLayout(QPageLayout(pdfPageSize, orientation, QMarginsF(8, 8, 8, 8), QPageLayout::Millimeter)))
++        {
++            return {};
++        }
++        writer.setTitle(suggestedFilename());
++        document.setPageSize(QSizeF(writer.width(), writer.height()));
++        document.print(&writer);
++    }
++
++    return pdfData;
++}
++
++
+ 
+ //
+ // Property Computing Methods
+diff --git a/src/navigation/FlightRoute.h b/src/navigation/FlightRoute.h
+index a246fc1..87e5943 100644
+--- a/src/navigation/FlightRoute.h
++++ b/src/navigation/FlightRoute.h
+@@ -422,6 +422,15 @@ namespace Navigation
+          */
+         [[nodiscard]] Q_INVOKABLE QString toVfrFlightPlan() const;
+ 
++        /*! \brief Exports the flight route as a PDF flight plan
++         *
++         * @param pageSize Page size, either "A5" or "A6"
++         * @param landscape If true, use landscape orientation
++         *
++         * @returns QByteArray containing the PDF, or an empty array on error
++         */
++        [[nodiscard]] Q_INVOKABLE QByteArray toPdf(const QString& pageSize = QStringLiteral("A5"), bool landscape = false) const;
++
+         /*! \brief Check for equality
+          *
+          * @param other Flight route to compare with
+diff --git a/src/qml/pages/FlightRouteEditor.qml b/src/qml/pages/FlightRouteEditor.qml
+index 1f52d29..5c456f9 100644
+--- a/src/qml/pages/FlightRouteEditor.qml
++++ b/src/qml/pages/FlightRouteEditor.qml
+@@ -41,6 +41,33 @@ Page {
+     property angle staticAngle
+     property speed staticSpeed
+ 
++    function exportPdf(pageSize, landscape, saveToDevice) {
++        PlatformAdaptor.vibrateBrief()
++        var pdfContent = Navigator.flightRoute.toPdf(pageSize, landscape)
++        if (pdfContent.length === 0) {
++            shareErrorDialogLabel.text = qsTr("Unable to generate the flight plan PDF.")
++            shareErrorDialog.open()
++            return
++        }
++
++        if (saveToDevice) {
++            FileExchange.saveContent(pdfContent, "application/pdf", "pdf", Navigator.flightRoute.suggestedFilename())
++            return
++        }
++
++        var errorString = FileExchange.shareContent(pdfContent, "application/pdf", "pdf", Navigator.flightRoute.suggestedFilename())
++        if (errorString === "abort") {
++            toast.doToast(qsTr("Aborted"))
++            return
++        }
++        if (errorString !== "") {
++            shareErrorDialogLabel.text = errorString
++            shareErrorDialog.open()
++            return
++        }
++        toast.doToast(isAndroid ? qsTr("Flight plan PDF shared") : qsTr("Flight plan PDF exported"))
++    }
++
+     header: PageHeader {
+ 
+         height: 60 + SafeInsets.top
+@@ -273,6 +300,46 @@ Page {
+                                 toast.doToast(qsTr("Flight route exported"))
+                         }
+                     }
++
++                    MenuItem {
++                        text: qsTr("… to PDF (A5, portrait)")
++                        onTriggered: {
++                            headerMenuX.close()
++                            highlighted = false
++                            parent.highlighted = false
++                            flightRoutePage.exportPdf("A5", false, false)
++                        }
++                    }
++
++                    MenuItem {
++                        text: qsTr("… to PDF (A5, landscape)")
++                        onTriggered: {
++                            headerMenuX.close()
++                            highlighted = false
++                            parent.highlighted = false
++                            flightRoutePage.exportPdf("A5", true, false)
++                        }
++                    }
++
++                    MenuItem {
++                        text: qsTr("… to PDF (A6, portrait)")
++                        onTriggered: {
++                            headerMenuX.close()
++                            highlighted = false
++                            parent.highlighted = false
++                            flightRoutePage.exportPdf("A6", false, false)
++                        }
++                    }
++
++                    MenuItem {
++                        text: qsTr("… to PDF (A6, landscape)")
++                        onTriggered: {
++                            headerMenuX.close()
++                            highlighted = false
++                            parent.highlighted = false
++                            flightRoutePage.exportPdf("A6", true, false)
++                        }
++                    }
+                 }
+ 
+                 AutoSizingMenu {
+@@ -323,6 +390,46 @@ Page {
+                             FileExchange.saveContent(Navigator.flightRoute.toPln(), "application/xml", "pln", Navigator.flightRoute.suggestedFilename())
+                         }
+                     }
++
++                    MenuItem {
++                        text: qsTr("… to PDF (A5, portrait)")
++                        onTriggered: {
++                            headerMenuX.close()
++                            highlighted = false
++                            parent.highlighted = false
++                            flightRoutePage.exportPdf("A5", false, true)
++                        }
++                    }
++
++                    MenuItem {
++                        text: qsTr("… to PDF (A6, portrait)")
++                        onTriggered: {
++                            headerMenuX.close()
++                            highlighted = false
++                            parent.highlighted = false
++                            flightRoutePage.exportPdf("A6", false, true)
++                        }
++                    }
++
++                    MenuItem {
++                        text: qsTr("… to PDF (A5, landscape)")
++                        onTriggered: {
++                            headerMenuX.close()
++                            highlighted = false
++                            parent.highlighted = false
++                            flightRoutePage.exportPdf("A5", true, true)
++                        }
++                    }
++
++                    MenuItem {
++                        text: qsTr("… to PDF (A6, landscape)")
++                        onTriggered: {
++                            headerMenuX.close()
++                            highlighted = false
++                            parent.highlighted = false
++                            flightRoutePage.exportPdf("A6", true, true)
++                        }
++                    }
+                 }
+ 
+                 AutoSizingMenu {
+diff --git a/src/ressources.qrc.in b/src/ressources.qrc.in
+index 5d497c5..e57f0f9 100644
+--- a/src/ressources.qrc.in
++++ b/src/ressources.qrc.in
+@@ -9,6 +9,11 @@
+         <file alias="license_overview.html">${CMAKE_SOURCE_DIR}/generatedSources/licenses_overview.html</file>
+     </qresource>
+ 
++    <!-- Flight plan PDF template -->
++    <qresource prefix="/pdf">
++        <file alias="flightplan.html">${CMAKE_CURRENT_SOURCE_DIR}/templates/flightplan.html</file>
++    </qresource>
++
+     <!-- Geoid correction data -->
+     <qresource>
+         <file alias="WW15MGH.DAC">${CMAKE_SOURCE_DIR}/3rdParty/egm/WW15MGH.DAC</file>
+diff --git a/src/templates/flightplan.html b/src/templates/flightplan.html
+new file mode 100644
+index 0000000..4dc8f63
+--- /dev/null
++++ b/src/templates/flightplan.html
+@@ -0,0 +1,29 @@
++<!DOCTYPE html>
++<html>
++<head>
++<meta charset="utf-8">
++<style>
++  body { font-family: sans-serif; font-size: 9pt; color: #111; }
++  h1 { font-size: 15pt; margin-bottom: 10pt; }
++  table { width: 100%; border-collapse: collapse; }
++  th, td { border: 1px solid #666; padding: 4pt; text-align: left; }
++  th { background-color: #e5e5e5; }
++</style>
++</head>
++<body>
++  <h1>{{title}}</h1>
++  <table>
++    <thead>
++      <tr>
++        <th>Waypoint</th>
++        <th>Course</th>
++        <th>Distance</th>
++        <th>ETE</th>
++      </tr>
++    </thead>
++    <tbody>
++      {{rows}}
++    </tbody>
++  </table>
++</body>
++</html>
