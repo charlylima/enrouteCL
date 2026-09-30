@@ -41,6 +41,33 @@ Page {
     property angle staticAngle
     property speed staticSpeed
 
+    function exportPdf(pageSize, landscape, saveToDevice) {
+        PlatformAdaptor.vibrateBrief()
+        var pdfContent = Navigator.flightRoute.toPdf(pageSize, landscape)
+        if (pdfContent.length === 0) {
+            shareErrorDialogLabel.text = qsTr("Unable to generate the flight plan PDF.")
+            shareErrorDialog.open()
+            return
+        }
+
+        if (saveToDevice) {
+            FileExchange.saveContent(pdfContent, "application/pdf", "pdf", Navigator.flightRoute.suggestedFilename())
+            return
+        }
+
+        var errorString = FileExchange.shareContent(pdfContent, "application/pdf", "pdf", Navigator.flightRoute.suggestedFilename())
+        if (errorString === "abort") {
+            toast.doToast(qsTr("Aborted"))
+            return
+        }
+        if (errorString !== "") {
+            shareErrorDialogLabel.text = errorString
+            shareErrorDialog.open()
+            return
+        }
+        toast.doToast(isAndroid ? qsTr("Flight plan PDF shared") : qsTr("Flight plan PDF exported"))
+    }
+
     header: PageHeader {
 
         height: 60 + SafeInsets.top
@@ -273,6 +300,46 @@ Page {
                                 toast.doToast(qsTr("Flight route exported"))
                         }
                     }
+
+                    MenuItem {
+                        text: qsTr("… to PDF (A5, portrait)")
+                        onTriggered: {
+                            headerMenuX.close()
+                            highlighted = false
+                            parent.highlighted = false
+                            flightRoutePage.exportPdf("A5", false, false)
+                        }
+                    }
+
+                    MenuItem {
+                        text: qsTr("… to PDF (A5, landscape)")
+                        onTriggered: {
+                            headerMenuX.close()
+                            highlighted = false
+                            parent.highlighted = false
+                            flightRoutePage.exportPdf("A5", true, false)
+                        }
+                    }
+
+                    MenuItem {
+                        text: qsTr("… to PDF (A6, portrait)")
+                        onTriggered: {
+                            headerMenuX.close()
+                            highlighted = false
+                            parent.highlighted = false
+                            flightRoutePage.exportPdf("A6", false, false)
+                        }
+                    }
+
+                    MenuItem {
+                        text: qsTr("… to PDF (A6, landscape)")
+                        onTriggered: {
+                            headerMenuX.close()
+                            highlighted = false
+                            parent.highlighted = false
+                            flightRoutePage.exportPdf("A6", true, false)
+                        }
+                    }
                 }
 
                 AutoSizingMenu {
@@ -321,6 +388,46 @@ Page {
                             highlighted = false
                             parent.highlighted = false
                             FileExchange.saveContent(Navigator.flightRoute.toPln(), "application/xml", "pln", Navigator.flightRoute.suggestedFilename())
+                        }
+                    }
+
+                    MenuItem {
+                        text: qsTr("… to PDF (A5, portrait)")
+                        onTriggered: {
+                            headerMenuX.close()
+                            highlighted = false
+                            parent.highlighted = false
+                            flightRoutePage.exportPdf("A5", false, true)
+                        }
+                    }
+
+                    MenuItem {
+                        text: qsTr("… to PDF (A6, portrait)")
+                        onTriggered: {
+                            headerMenuX.close()
+                            highlighted = false
+                            parent.highlighted = false
+                            flightRoutePage.exportPdf("A6", false, true)
+                        }
+                    }
+
+                    MenuItem {
+                        text: qsTr("… to PDF (A5, landscape)")
+                        onTriggered: {
+                            headerMenuX.close()
+                            highlighted = false
+                            parent.highlighted = false
+                            flightRoutePage.exportPdf("A5", true, true)
+                        }
+                    }
+
+                    MenuItem {
+                        text: qsTr("… to PDF (A6, landscape)")
+                        onTriggered: {
+                            headerMenuX.close()
+                            highlighted = false
+                            parent.highlighted = false
+                            flightRoutePage.exportPdf("A6", true, true)
                         }
                     }
                 }

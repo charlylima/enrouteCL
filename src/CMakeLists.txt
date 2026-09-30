@@ -286,6 +286,7 @@ set(ENROUTE_COMMON_LIBRARIES
     Qt6::Concurrent
     Qt6::Core
     Qt6::Core5Compat
+    Qt6::Gui
     Qt6::HttpServer
     Qt6::Positioning
     Qt6::Quick

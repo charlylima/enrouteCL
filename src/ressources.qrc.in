@@ -9,6 +9,11 @@
         <file alias="license_overview.html">${CMAKE_SOURCE_DIR}/generatedSources/licenses_overview.html</file>
     </qresource>
 
+    <!-- Flight plan PDF template -->
+    <qresource prefix="/pdf">
+        <file alias="flightplan.html">${CMAKE_CURRENT_SOURCE_DIR}/templates/flightplan.html</file>
+    </qresource>
+
     <!-- Geoid correction data -->
     <qresource>
         <file alias="WW15MGH.DAC">${CMAKE_SOURCE_DIR}/3rdParty/egm/WW15MGH.DAC</file>

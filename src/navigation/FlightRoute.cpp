@@ -18,8 +18,13 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
+#include <QBuffer>
 #include <QJsonArray>
+#include <QPageLayout>
+#include <QPageSize>
+#include <QPdfWriter>
 #include <QStandardPaths>
+#include <QTextDocument>
 
 #include "FlightRoute.h"
 #include "GlobalObject.h"
@@ -719,6 +724,85 @@ auto Navigation::FlightRoute::toVfrFlightPlan() const -> QString
     
     // Return single line with all waypoints connected by DCT
     return routeElements.join(u" DCT ");
+}
+
+
+auto Navigation::FlightRoute::toPdf(const QString& pageSize, bool landscape) const -> QByteArray
+{
+    QPageSize pdfPageSize;
+    if (pageSize.compare(u"A5"_s, Qt::CaseInsensitive) == 0)
+    {
+        pdfPageSize = QPageSize(QPageSize::A5);
+    }
+    else if (pageSize.compare(u"A6"_s, Qt::CaseInsensitive) == 0)
+    {
+        pdfPageSize = QPageSize(QPageSize::A6);
+    }
+    else
+    {
+        return {};
+    }
+
+    QFile templateFile(u":/pdf/flightplan.html"_s);
+    if (!templateFile.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        qWarning() << "Unable to read the flight plan PDF template";
+        return {};
+    }
+    QString html = QString::fromUtf8(templateFile.readAll());
+
+    QString rows;
+    const auto waypoints = m_waypoints.value();
+    if (!waypoints.isEmpty())
+    {
+        rows += u"<tr><td>"_s + waypoints.constFirst().shortName().toHtmlEscaped()
+                + u"</td><td>—</td><td>—</td><td>—</td></tr>"_s;
+    }
+
+    const auto aircraft = GlobalObject::navigator()->aircraft();
+    const auto wind = GlobalObject::navigator()->wind();
+    for (const auto& leg : m_legs.value())
+    {
+        const auto waypoint = leg.endPoint().shortName().toHtmlEscaped();
+        const auto course = leg.TC().isFinite()
+                                ? QString::number(qRound(leg.TC().toDEG())) + u"°"_s
+                                : u"—"_s;
+        const auto distance = aircraft.horizontalDistanceToString(leg.distance());
+        const auto ete = leg.ETE(wind, aircraft);
+        const auto time = ete.isFinite() ? ete.toHoursAndMinutes() : u"—"_s;
+        rows += u"<tr><td>"_s + waypoint + u"</td><td>"_s + course.toHtmlEscaped()
+                + u"</td><td>"_s + distance.toHtmlEscaped() + u"</td><td>"_s
+                + time.toHtmlEscaped() + u"</td></tr>"_s;
+    }
+
+    html.replace(u"{{title}}"_s, tr("Flight plan — %1").arg(suggestedFilename()).toHtmlEscaped());
+    html.replace(u"{{rows}}"_s, rows);
+
+    QTextDocument document;
+    document.setHtml(html);
+    document.setDocumentMargin(0);
+
+    QByteArray pdfData;
+    QBuffer buffer(&pdfData);
+    if (!buffer.open(QIODevice::WriteOnly))
+    {
+        return {};
+    }
+
+    {
+        QPdfWriter writer(&buffer);
+        writer.setResolution(300);
+        const auto orientation = landscape ? QPageLayout::Landscape : QPageLayout::Portrait;
+        if (!writer.setPageLayout(QPageLayout(pdfPageSize, orientation, QMarginsF(8, 8, 8, 8), QPageLayout::Millimeter)))
+        {
+            return {};
+        }
+        writer.setTitle(suggestedFilename());
+        document.setPageSize(QSizeF(writer.width(), writer.height()));
+        document.print(&writer);
+    }
+
+    return pdfData;
 }
 
 

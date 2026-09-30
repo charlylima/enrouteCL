@@ -422,6 +422,15 @@ namespace Navigation
          */
         [[nodiscard]] Q_INVOKABLE QString toVfrFlightPlan() const;
 
+        /*! \brief Exports the flight route as a PDF flight plan
+         *
+         * @param pageSize Page size, either "A5" or "A6"
+         * @param landscape If true, use landscape orientation
+         *
+         * @returns QByteArray containing the PDF, or an empty array on error
+         */
+        [[nodiscard]] Q_INVOKABLE QByteArray toPdf(const QString& pageSize = QStringLiteral("A5"), bool landscape = false) const;
+
         /*! \brief Check for equality
          *
          * @param other Flight route to compare with
