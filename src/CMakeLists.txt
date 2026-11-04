@@ -391,7 +391,7 @@ if(ANDROID)
         Qt6::WebView
     )
     add_android_openssl_libraries(${PROJECT_NAME})
-    qmaplibre_location_setup_plugins(${PROJECT_NAME})
+    enroute_setup_maplibre_plugins(${PROJECT_NAME})
     set_target_properties(${PROJECT_NAME} PROPERTIES
         QT_ANDROID_PACKAGE_NAME "de.akaflieg_freiburg.enroute"
         QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/android"
@@ -453,6 +453,12 @@ target_precompile_headers(${PROJECT_NAME}
     <QQmlEngine>
 )
 
+# MapLibre is built from source in 3rdParty/. Set up the geoservices + QML
+# plugins for this executable: makes the MapLibre QML module visible to qmllint
+# and copies the plugins next to the binary so the app runs from the build tree
+# without QML2_IMPORT_PATH / QT_PLUGIN_PATH.
+enroute_setup_maplibre_plugins(${PROJECT_NAME})
+
 # Install (the executable itself is installed by the shared rule near the end of this file)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/3rdParty/enrouteManual DESTINATION ${CMAKE_INSTALL_DOCDIR} PATTERN ".git*" EXCLUDE)
 endif()
@@ -512,6 +518,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
         Qt6::WebView
         Qt6::Widgets
     )
+    enroute_setup_maplibre_plugins(${PROJECT_NAME})
 endif()
 
 
@@ -565,7 +572,7 @@ if (IOS)
     )
     set_source_files_properties(
         PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
-    qmaplibre_location_setup_plugins(${PROJECT_NAME})
+    enroute_setup_maplibre_plugins(${PROJECT_NAME})
     target_include_directories(${PROJECT_NAME}
         PRIVATE
         ios/mapLibreDependencies
@@ -632,10 +639,15 @@ qt_add_qml_module(${PROJECT_NAME}
     URI akaflieg_freiburg.enroute
     VERSION 1.0
     NO_RESOURCE_TARGET_PATH
+    # MapLibre is built from source in 3rdParty/; tell the QML tooling (qmlcachegen,
+    # qmllint) and androiddeployqt's qmlimportscanner where the "MapLibre" module
+    # lives. Without this, "import MapLibre" in FlightMap.qml cannot be resolved.
+    IMPORT_PATH ${MLN_QT_PLUGIN_BUILD_DIR}
     DEPENDENCIES
     QtPositioning
     QtQuick
     QtTextToSpeech
+    MapLibre
     QML_FILES
     qml/main.qml
     qml/dialogs/AddBTDeviceDialog.qml

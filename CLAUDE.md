@@ -1,13 +1,18 @@
 # Project: enroute
 
 ## Build & lint
-# The system Qt under /usr/lib64 is incomplete; build against the Qt online-installer
-# build under ~/Software/buildsystems/Qt. Auto-detect the newest version (it changes
-# over time) and pass it as the prefix — do NOT hardcode a version number.
-# Development happens on both Linux (kit dir "gcc_64") and macOS (kit dir "macos"),
-# so detect whichever desktop kit is present — do NOT hardcode the platform either.
-QTDIR=$(find ~/Software/buildsystems/Qt -maxdepth 2 -type d \( -name gcc_64 -o -name macos \) | sort -V | tail -1)
-cmake -B build/claude -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_PREFIX_PATH="$QTDIR"
+# All third-party libraries (zlib, bzip2, libzip, maplibre-native-qt) are git
+# submodules under 3rdParty/ and are compiled as part of the enroute build — the
+# separate "enrouteDependencies" repository is no longer required. After cloning:
+#     git submodule update --init --recursive
+# Build against the Qt online-installer kit; the path comes from the environment:
+#     export Qt6_DIR_BASE=/opt/Qt/6.11.2/
+#     export Qt6_DIR_LINUX=/opt/Qt/6.11.2/gcc_64/
+# ./build-linux.sh configures + builds into build-linux/ (Debug, ccache, Ninja);
+# pass -no-clean to keep the tree, -run to start the app afterwards. The build
+# copies the MapLibre geoservices + QML plugins next to the executable, so
+# build-linux/src/enroute runs without QML2_IMPORT_PATH / QT_PLUGIN_PATH.
+cmake -B build/claude -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_PREFIX_PATH="$Qt6_DIR_LINUX"
 cmake --build build/claude
 cmake --build build/claude --target all_qmllint   # lint all QML (resolves project modules)
 # NOTE: this project has no test target — `ctest` reports 0 tests. Verify via build +
@@ -15,6 +20,8 @@ cmake --build build/claude --target all_qmllint   # lint all QML (resolves proje
 # The flight log (src/flightlog, FlightLogPage.qml) is work in progress and hidden in
 # default builds. Add -DFLIGHTLOG=ON to the configure line to work on it. The option is
 # cached in build/claude, so pass -DFLIGHTLOG=OFF/ON explicitly when the state matters.
+# Android: ./build-android.sh builds the APK with the android_arm64_v8a kit; the
+# dependencies are built in-tree (static) as well, nothing is installed into the kit.
 
 ## Conventions & rules
 - Always build into build/claude (pass -B build/claude). Never configure into the repo
