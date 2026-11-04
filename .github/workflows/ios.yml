@@ -1,8 +1,10 @@
 name: Compile on iOS
 
 on:
+  # TEMPORARY: build on every branch while the in-tree dependency integration
+  # is tested from feature branches. Revert to 'branches: [ develop ]' afterwards.
   push:
-    branches: [ develop ]
+    branches: ['**']
     paths-ignore: &paths-ignore
       - ".gitignore"
       - "README.md"
