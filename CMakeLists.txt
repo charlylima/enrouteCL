@@ -101,9 +101,9 @@ qt_policy(SET QTP0004 NEW)
 # External Packages
 #
 
-find_package(libzip REQUIRED)
+# libzip, zlib, bzip2 and MapLibre Native Qt are built from source in 3rdParty/
+# (see 3rdParty/CMakeLists.txt); no find_package() for them is needed anymore.
 find_package(Git REQUIRED)
-find_package(QMapLibre COMPONENTS Location REQUIRED)
 
 if(IOS)
     # The workaround moves the app bundle to build/<config>-iphoneos, where Qt Creator does not
