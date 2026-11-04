@@ -1,8 +1,10 @@
 name: Compile on MacOS
 
 on:
+  # TEMPORARY: build on every branch while the in-tree dependency integration
+  # is tested from feature branches. Revert to 'branches: [ develop ]' afterwards.
   push:
-    branches: [ develop ]
+    branches: ['**']
     paths-ignore: &paths-ignore
       - ".gitignore"
       - "README.md"
@@ -68,10 +70,3 @@ jobs:
         cmake --build build-enroute --target install
         /usr/bin/sudo $QT_ROOT_DIR/bin/macdeployqt enroute.app -dmg
         mv enroute.dmg enroute-macOS-universal.dmg
-    - name: Upload to developerBuilds
-      if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-      run: |
-        gh release upload --clobber developerBuilds ../enroute-macOS-universal.dmg
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      working-directory: enroute

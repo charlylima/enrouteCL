@@ -1,8 +1,10 @@
 name: Compile on Linux
 
 on:
+  # TEMPORARY: build on every branch while the in-tree dependency integration
+  # is tested from feature branches. Revert to 'branches: [ develop ]' afterwards.
   push:
-    branches: [ develop ]
+    branches: ['**']
     paths-ignore: &paths-ignore
       - ".gitignore"
       - "README.md"
@@ -100,10 +102,3 @@ jobs:
       run: |
         linuxdeploy-x86_64.AppImage --appdir app --output appimage
         mv *-x86_64.AppImage enroute-Linux.AppImage
-    - name: Upload to developerBuilds
-      if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-      run: |
-        gh release upload --clobber developerBuilds ../enroute-Linux.AppImage
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      working-directory: enroute
