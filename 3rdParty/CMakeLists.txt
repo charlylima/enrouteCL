@@ -250,6 +250,30 @@ install(CODE "
     endif()
 ")
 
+# iOS + Xcode: with MLN_QT_STATIC the plugins are OBJECT libraries
+# (qtgeoservices_maplibre_init, declarative_locationplugin_maplibre_init), and
+# the Xcode generator rejects install(TARGETS ...) rules that list OBJECT
+# libraries ("objects may not be installed under Xcode with multiple
+# architectures") - a configure-time error that CMAKE_SKIP_INSTALL_RULES cannot
+# suppress. iOS builds are never installed anyway: everything is linked into
+# the app bundle, so we neutralize the install() calls made inside the maplibre
+# subtree. The macro expands in the caller's scope, so CMAKE_CURRENT_SOURCE_DIR
+# identifies where install() was called from; calls from anywhere else (the
+# vendor symlink rules above, src/, packaging/, ...) are forwarded to the
+# original command.
+if(IOS AND CMAKE_GENERATOR STREQUAL "Xcode")
+    macro(install)
+        if(CMAKE_CURRENT_SOURCE_DIR MATCHES "/maplibre-native-qt(/|$)")
+            if(NOT _mln_ios_install_skipped)
+                message(STATUS "Skipping MapLibre install rules on iOS (Xcode cannot install OBJECT libraries)")
+                set(_mln_ios_install_skipped ON)
+            endif()
+        else()
+            _install(${ARGN})
+        endif()
+    endmacro()
+endif()
+
 _add_subdirectory(maplibre-native-qt)
 
 # Clean up the temporary vendor symlink after all install operations.
