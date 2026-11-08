@@ -2,10 +2,7 @@
 
 # build dirs
 build/
-build-android-release/
-build-android-debug/
-build-linux/
-build-macos/
+build-*/
 .gradle/
 
 # Doxygen generated documentation
@@ -37,13 +34,3 @@ generatedSources/vendor
 
 # Personal Claude Code permission grants (machine-specific)
 .claude/settings.local.json
-build-*/
-
-# Local install prefix produced by build-linux.sh
-enrouteInstallation/
-
-# Temporary symlink created during `cmake --install` (MapLibre vendor path)
-/vendor
-
-# APK produced by build-android.sh
-/enroute.apk
