@@ -366,17 +366,24 @@ function(enroute_setup_maplibre_plugins target_name)
         return()
     endif()
 
+    add_dependencies(${target_name}
+        qtgeoservices_maplibre
+        declarative_locationplugin_maplibre)
+
     if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
         # Mirror the upstream macro: the geoservices plugin goes into the app
         # bundle, the MapLibre QML module into the bundle's qml directory.
         add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                $<TARGET_BUNDLE_DIR:${target_name}>/Contents/PlugIns/geoservices
             COMMAND ${CMAKE_COMMAND} -E copy
                 $<TARGET_FILE:qtgeoservices_maplibre>
                 $<TARGET_BUNDLE_DIR:${target_name}>/Contents/PlugIns/geoservices/
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${_plugin_build_dir}/MapLibre
                 $<TARGET_BUNDLE_DIR:${target_name}>/Contents/Resources/qml/MapLibre
-            COMMENT "Copying MapLibre plugins into ${target_name}.app")
+            COMMENT "Copying MapLibre plugins into ${target_name}.app"
+            VERBATIM)
         set_source_files_properties(${_plugin_build_dir}/MapLibre PROPERTIES
             MACOSX_PACKAGE_LOCATION "Resources/qml")
     else()
