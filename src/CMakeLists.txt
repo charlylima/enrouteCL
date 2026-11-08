@@ -469,8 +469,6 @@ endif()
 #
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0")
-    message("CMAKE_OSX_DEPLOYMENT_TARGET: ${CMAKE_OSX_DEPLOYMENT_TARGET}")
     set(app_icon_macos "${CMAKE_CURRENT_SOURCE_DIR}/macos/enroute.icns")
     set_source_files_properties(${app_icon_macos} PROPERTIES
         MACOSX_PACKAGE_LOCATION "Resources")

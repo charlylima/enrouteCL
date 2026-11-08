@@ -30,6 +30,13 @@ endif()
 #
 
 project(enroute VERSION 3.5.14)
+
+# Apply the macOS minimum to every target, including in-tree dependencies.
+# Set this after project() identifies the target platform, but before adding targets.
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum macOS deployment target" FORCE)
+endif()
+
 set(APP_ID de.akaflieg_freiburg.enroute)
 set(DISPLAY_NAME "Enroute")
 math(EXPR PROJECT_VERSION_CODE 10000*${PROJECT_VERSION_MAJOR}+100*${PROJECT_VERSION_MINOR}+${PROJECT_VERSION_PATCH})
