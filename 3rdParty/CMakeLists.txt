@@ -27,8 +27,8 @@ else()
     set_property(DIRECTORY PROPERTY COMPILE_OPTIONS "-w")
 endif()
 
-# Static libraries below are linked into shared libraries (libzip on Android,
-# everything into the iOS static build), so compile them position-independent.
+# Static libraries below may be linked into shared libraries, so compile them
+# position-independent.
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 #
@@ -119,21 +119,17 @@ set(ZLIB_BUILD_TESTING OFF CACHE BOOL "Do not build the zlib examples" FORCE)
 set(ZLIB_INSTALL OFF CACHE BOOL "Do not install zlib into the enroute prefix" FORCE)
 add_subdirectory(zlib)
 
-# Make libzip's `find_package(ZLIB 1.1.2 REQUIRED)` resolve to the in-tree zlib
-# instead of a system library. The zlib subdirectory already defines the
-# ZLIB::ZLIB / ZLIB::ZLIBSTATIC aliases (with the correct include directories) when
-# it built the shared library; FindZLIB skips its work when the target exists.
-# On mobile (static only) we pre-seed the cache variables so FindZLIB creates an
-# imported ZLIB::ZLIB pointing at the in-tree libz.a. Setting ZLIB_LIBRARY also
-# prevents FindZLIB from ever locating a system zlib via find_library().
+# Make libzip's find_package(ZLIB) resolve to the in-tree target, including
+# for multi-configuration generators where the archive path varies by config.
 set(CMAKE_POLICY_DEFAULT_CMP0074 NEW)
 set(ZLIB_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/zlib" CACHE PATH "Path to zlib sources" FORCE)
 set(ZLIB_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/zlib" CACHE PATH "Path to zlib headers" FORCE)
 if(ANDROID OR IOS)
     set(ZLIB_USE_STATIC_LIBS ON CACHE BOOL "Use the static zlib" FORCE)
-    set(ZLIB_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/zlib/libz.a" CACHE FILEPATH "In-tree zlib" FORCE)
+    add_library(ZLIB::ZLIB ALIAS zlibstatic)
+    set(ZLIB_LIBRARY zlibstatic CACHE STRING "In-tree zlib target" FORCE)
 else()
-    set(ZLIB_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/zlib/libz${CMAKE_SHARED_LIBRARY_SUFFIX}" CACHE FILEPATH "In-tree zlib" FORCE)
+    set(ZLIB_LIBRARY zlib CACHE STRING "In-tree zlib target" FORCE)
 endif()
 
 
@@ -159,16 +155,13 @@ set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/.bzip2-install")
 add_subdirectory(bzip2)
 unset(CMAKE_INSTALL_PREFIX)
 
-# Point libzip's `find_package(BZip2)` at the in-tree library. FindBZip2 creates
-# the BZip2::BZip2 imported target from these variables. All three of
-# BZIP2_LIBRARIES / BZIP2_LIBRARY / BZIP2_LIBRARY_RELEASE must be set: the module
-# skips its find_library() calls when BZIP2_LIBRARIES is provided, and the
-# imported target's location is taken from BZIP2_LIBRARY(_RELEASE).
+# Point libzip's find_package(BZip2) at the in-tree target. Its prefixed API is
+# known, so FindBZip2 need not try to link an as-yet unbuilt library at configure time.
+target_include_directories(bz2_static PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/bzip2")
+add_library(BZip2::BZip2 ALIAS bz2_static)
 set(BZIP2_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bzip2" CACHE PATH "Path to bzip2 headers" FORCE)
-set(BZIP2_LIBRARIES "${CMAKE_CURRENT_BINARY_DIR}/bzip2/libbz2_static.a" CACHE STRING "In-tree bzip2" FORCE)
-set(BZIP2_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/bzip2/libbz2_static.a" CACHE FILEPATH "In-tree bzip2" FORCE)
-set(BZIP2_LIBRARY_RELEASE "${CMAKE_CURRENT_BINARY_DIR}/bzip2/libbz2_static.a" CACHE FILEPATH "In-tree bzip2" FORCE)
-set(BZIP2_FOUND TRUE CACHE BOOL "BZip2 found flag" FORCE)
+set(BZIP2_LIBRARIES bz2_static CACHE STRING "In-tree bzip2 target" FORCE)
+set(BZIP2_NEED_PREFIX TRUE)
 
 
 #
@@ -407,4 +400,3 @@ endif()
 if(DEFINED _SAVED_PKG_CONFIG_RPATH)
     set(PKG_CONFIG_RPATH "${_SAVED_PKG_CONFIG_RPATH}")
 endif()
-
